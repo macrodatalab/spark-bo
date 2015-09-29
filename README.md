@@ -22,6 +22,9 @@ $ bin/spark-shell --jars spark-bo-0.1.jar
 ```
 
 ## What is BO
+"BigObject Analytics is an analytic database. It is designed to help users easily gain actionable insights from their data and build data-driven applications."
+
+"BigObject Analytics delivers an analytic framework that unmask the intelligence out of your data."
 
 ## Examples
 BO data can be queried in pure SQL by registering the data as a (temporary) table.
