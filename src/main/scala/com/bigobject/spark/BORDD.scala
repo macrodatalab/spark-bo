@@ -59,8 +59,8 @@ class BOIface(url: String, cmd: String, method: String, stmts: Array[String]) ex
   private val jFactory = new JsonFactory()
   private val mapper = new ObjectMapper()
   
-  var error = ""
-  var content = null.asInstanceOf[Map[String, Any]]
+  var error = new ArrayBuffer[String]
+  var content = new ArrayBuffer[Map[String, Any]]
   var httpStatus = 0
   val status = exec()
   
@@ -112,14 +112,25 @@ class BOIface(url: String, cmd: String, method: String, stmts: Array[String]) ex
     val rspStr = EntityUtils.toString(httpRsp.getEntity())
     client.close()
 
-    val data = convert(mapper.readValue(rspStr, classOf[Object])).asInstanceOf[Map[String, Any]]
-    if (data.contains("Content"))
-      content = data("Content").asInstanceOf[Map[String, Any]]
-    if (data.contains("Err"))
-      error = data("Err").asInstanceOf[String]
-    if (data.contains("Status"))
-      return data("Status").asInstanceOf[Int]
-    return -1
+    var boStatus = 0
+    var offset = 0
+    var slen = 0
+    val jP = jFactory.createParser(rspStr)
+    while (jP.nextToken() != null) {
+      jP.skipChildren()
+      slen = jP.getCurrentLocation().getCharOffset().asInstanceOf[Int]
+
+      val data = convert(mapper.readValue(rspStr.substring(offset, slen), classOf[Object])).asInstanceOf[Map[String, Any]]
+      if (data.contains("Content"))
+        content += data("Content").asInstanceOf[Map[String, Any]]
+      if (data.contains("Err"))
+        error += data("Err").asInstanceOf[String]
+      if (data.contains("Status"))
+        if (boStatus == 0)
+          boStatus = data("Status").asInstanceOf[Int]
+      offset = slen + 1
+    }
+    return boStatus
   }
 }
 
@@ -320,11 +331,11 @@ object BORDD extends Logging {
       logError(s"Failed to get $table table schema. (Http status code: ${boApi.httpStatus}, BO status code: ${boApi.status})")
       return null.asInstanceOf[StructType]
     }
-    if (!boApi.content.contains("schema")) {
+    if (!boApi.content(0).contains("schema")) {
       logError("Invalid BO output: no BO table schema.")
       return null.asInstanceOf[StructType]
     }
-    val schMap = boApi.content("schema").asInstanceOf[Map[String, Any]]
+    val schMap = boApi.content(0)("schema").asInstanceOf[Map[String, Any]]
     if (!schMap.contains("attr")) {
       logError("Invalid BO output: no BO table schema attribute.")
       return null.asInstanceOf[StructType]
@@ -454,18 +465,18 @@ class BORDD(
       logError(s"Failed to get $fqTable table. (Http status code: ${boApi.httpStatus}, BO status code: ${boApi.status})")
       finished = true
     }
-    else if (!boApi.content.contains("content")) {
-      logError(s"Invalid BO $fqTable table: No content.")
-      finished = true
-    }
-    else
-    {
-      val columns = boApi.content("content").asInstanceOf[ArrayBuffer[ArrayBuffer[Any]]]
-      if (columns.isEmpty) {
+    else {
+      var rows = new ArrayBuffer[ArrayBuffer[Any]]
+      var content = null.asInstanceOf[Map[String, ArrayBuffer[Any]]]
+      for (content <- boApi.content
+            if content.contains("content")) {
+        rows ++= content("content").asInstanceOf[ArrayBuffer[ArrayBuffer[Any]]]
+      }
+      if (rows.isEmpty) {
         finished = true
       }
       else {
-        iter = columns.toIterator
+        iter = rows.toIterator
       }
     }
 
@@ -503,8 +514,9 @@ class BORDD(
             case FloatType =>
               val value = row(i)
               value match {
-                case value: java.lang.Integer => mutableRow.setDouble(i, value.asInstanceOf[Int].toFloat)
-                case _ => mutableRow.setDouble(i, value.asInstanceOf[Float])
+                case value: java.lang.Integer => mutableRow.setFloat(i, value.asInstanceOf[Int].toFloat)
+                case value: java.lang.Double => mutableRow.setFloat(i, value.asInstanceOf[Double].toFloat)
+                case _ => mutableRow.setFloat(i, value.asInstanceOf[Float])
               }
             case ByteType =>
               val value = row(i)
