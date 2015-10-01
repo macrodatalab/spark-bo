@@ -109,7 +109,7 @@ class BOIface(url: String, cmd: String, method: String, stmts: Array[String]) ex
     }
 
     httpStatus = httpRsp.getStatusLine().getStatusCode()
-    val rspStr = EntityUtils.toString(httpRsp.getEntity())
+    val rspStr = EntityUtils.toString(httpRsp.getEntity(), "utf-8")
     client.close()
 
     var boStatus = 0
