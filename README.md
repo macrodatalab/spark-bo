@@ -43,3 +43,20 @@ import org.apache.spark.sql.SQLContext
 val sqlContext = new SQLContext(sc)
 val product = sqlContext.load("com.bigobject.spark", Map("url" -> "http://127.0.0.1:9090", "dbtable" -> "Product"))
 ```
+
+One of the BO strength is [Data Analytics](https://docs.bigobject.io/Data_Analytics/index.html). Following examples will show you how to take the advantage of BO Data Analytics engine.
+
+```scala
+import com.bigobject.spark._
+
+val url = "http://127.0.0.1:9090"
+// build association between products from sales table
+BORDD.command(sc, url, "BUILD ASSOCIATION prod2prod (Product.name) BY Customer.id FROM sales")
+
+// get top 10 products that are associated with 'Tropical Berry'
+val dfTop10 = BORDD.sql(sc, url, "GET TOP 10 FREQ ('Tropical Berry') FROM prod2prod")
+
+// find (at most) 10 brands whose 40% sales records comes from the first 10% state sales
+val sqlFind4010 = "FIND pareto(40,10) Product.brand IN Customer.state BY sum(qty) FROM sales"
+val df4010 = BORDD.sql(sc, url, sqlFind4010)
+```

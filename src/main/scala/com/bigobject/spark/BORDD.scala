@@ -54,7 +54,7 @@ case class BOPartition(url: String, idx: Int) extends Partition {
 /* BOIface class
  * . wrappers BO RESTful API.
 */
-class BOIface(url: String, cmd: String, method: String, stmts: Array[String]) extends Logging {
+class BOIface(url: String, cmd: String, method: String, stmts: Array[String], async: Boolean = false) extends Logging {
 
   private val jFactory = new JsonFactory()
   private val mapper = new ObjectMapper()
@@ -89,6 +89,11 @@ class BOIface(url: String, cmd: String, method: String, stmts: Array[String]) ex
             loop.break
           jG.writeStartObject()
           jG.writeStringField("Stmt", sql)
+          if (async) {
+            jG.writeObjectFieldStart("Opts")
+            jG.writeBooleanField("Handle", true)
+            jG.writeEndObject()
+          }
           jG.writeEndObject()
         }
       }
@@ -186,16 +191,48 @@ object BORDD extends Logging {
       false
   }
 
-  // TODO: detect schema automatically
+  def command(
+    sc: SparkContext,
+    url: String,
+    sqlString: String,
+    sqlCtx: SQLContext = null) : Int = {
+    var sqlSc = sqlCtx
+    if (sqlCtx == null)
+      sqlSc = new SQLContext(sc)
+
+    val boApi = new BOIface(url, "cmd", "post", Array(sqlString))
+    if (boApi.httpStatus != 200 || boApi.status != 0)
+      logError(s"Run command failed. (Http status code: ${boApi.httpStatus}, BO status code: ${boApi.status})")
+	boApi.status
+  }
+
   def sql(
     sc: SparkContext,
     url: String,
     sqlString: String,
-    schema: StructType,
     sqlCtx: SQLContext = null) : DataFrame = {
     var sqlSc = sqlCtx
     if (sqlCtx == null)
       sqlSc = new SQLContext(sc)
+
+    val boApi = new BOIface(url, "cmd", "post", Array(sqlString), true)
+    if (boApi.httpStatus != 200 || boApi.status != 0) {
+      logError(s"Failed to resolve sql statement. (Http status code: ${boApi.httpStatus}, BO status code: ${boApi.status})")
+      return null.asInstanceOf[DataFrame]
+    }
+    if (!boApi.content(0).contains("res")) {
+      logError("Invalid BO output: no BO handle.")
+      return null.asInstanceOf[DataFrame]
+    }
+    val handle = boApi.content(0)("res").asInstanceOf[String]
+    if (handle.length == 0) {
+      logError("Invalid BO output: BO handle is empty.")
+      return null.asInstanceOf[DataFrame]
+    }
+	val schema = resolveSchema(url, s"HDESC $handle")
+	if (schema == null)
+      return null.asInstanceOf[DataFrame]
+	
     sqlSc.createDataFrame(
       new BORDD(
         sc,
@@ -205,7 +242,7 @@ object BORDD extends Logging {
         Array[Filter](null),
         getPartition(url.split(",")),
         null,
-        sqlString),
+        s"SCAN $handle"),
       schema)
   }
   
@@ -325,10 +362,10 @@ object BORDD extends Logging {
     if (sb.length < 2) "" else sb.substring(2)
   }
 
-  def resolveTable(url: String, table: String): StructType = {
-    val boApi = new BOIface(url, "cmd", "post", Array(s"DESC $table"))
+  private def resolveSchema(url: String, schemaCmd: String): StructType = {
+    val boApi = new BOIface(url, "cmd", "post", Array(schemaCmd))
     if (boApi.httpStatus != 200 || boApi.status != 0) {
-      logError(s"Failed to get $table table schema. (Http status code: ${boApi.httpStatus}, BO status code: ${boApi.status})")
+      logError(s"Failed to resolve schema. (Http status code: ${boApi.httpStatus}, BO status code: ${boApi.status})")
       return null.asInstanceOf[StructType]
     }
     if (!boApi.content(0).contains("schema")) {
@@ -357,6 +394,10 @@ object BORDD extends Logging {
       fields(i) = StructField(colName, getCatalystType(col("type")), false, metadata.build());
     }
 	return new StructType(fields)
+  }
+
+  def resolveTable(url: String, table: String): StructType = {
+    return resolveSchema(url, s"DESC $table")
   }
 
   private def pruneSchema(schema: StructType, columns: Array[String]): StructType = {
