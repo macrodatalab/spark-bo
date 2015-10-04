@@ -464,7 +464,18 @@ class BORDD(
     case GreaterThan(attr, value) => s"$attr > ${compileValue(value)}"
     case LessThanOrEqual(attr, value) => s"$attr <= ${compileValue(value)}"
     case GreaterThanOrEqual(attr, value) => s"$attr >= ${compileValue(value)}"
-    case _ => null
+    case StringStartsWith(attr, value) => s"$attr LIKE '${compileValue(value)}%'"
+    case StringEndsWith(attr, value) => s"$attr LIKE '%${compileValue(value)}'"
+    case StringContains(attr, value) => s"$attr LIKE '%${compileValue(value)}%'"
+    case In(attr, value) =>
+      val sb = new StringBuilder("")
+      value.foreach(x => sb.append(s"${compileValue(x)},"))
+      s"$attr IN (${sb.substring(0, sb.length - 1)})"
+    case Not(child) => s"NOT (${compileFilter(child)})"
+    case And(left, right) => s"${compileFilter(left)} AND ${compileFilter(right)}"
+    case Or(left, right) => s"${compileFilter(left)} OR ${compileFilter(right)}"
+    case IsNull(attr) => s"IS NULL"
+    case _ => null // BO types are not NULL, don't push down "NOT NULL"
   }
 
   private val filterWhereClause: String = {
