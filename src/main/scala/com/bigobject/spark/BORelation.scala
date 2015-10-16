@@ -146,7 +146,7 @@ case class BORelation(
       table,
       requiredColumns,
       filters,
-	  BORDD.getPartition(urls))
+	  BORDD.getPartition(urls, new Array[String](urls.length)))
   }
 
   // TODO: we should do just "INSERT INTO", not whole table??

@@ -47,7 +47,7 @@ import com.fasterxml.jackson.core.{JsonFactory,JsonGenerator,JsonParser,JsonToke
 import com.fasterxml.jackson.databind.ObjectMapper
 
 
-case class BOPartition(url: String, idx: Int) extends Partition {
+case class BOPartition(url: String, idx: Int, preSQL: String = null) extends Partition {
   override def index: Int = idx
 }
 
@@ -169,14 +169,18 @@ object BORDD extends Logging {
                         DateType -> "DATE32",
                         TimestampType -> "DATETIME64")
   
-  def getPartition(urls: Array[String]) : Array[Partition] = {
+  def getPartition(urls: Array[String], sqlStr: Array[String]) : Array[Partition] = {
+    if (urls.length != sqlStr.length) {
+      logError(s"Number of url (${urls.length}) is different from number of SQL statement (${sqlStr.length}).")
+      return null.asInstanceOf[Array[Partition]]
+    }
     var parts = new ArrayBuffer[Partition]()
     var i = 0
 	var url = null
     for (url <- urls) {
       if (url.length > 0)
       {
-        parts += BOPartition(url, i)
+        parts += BOPartition(url, i, sqlStr(i))
         i += 1
       }
     }
@@ -215,7 +219,8 @@ object BORDD extends Logging {
     if (sqlCtx == null)
       sqlSc = new SQLContext(sc)
 
-    val boApi = new BOIface(url, "cmd", "post", Array(sqlString), true)
+    val urls = url.split(",")
+    val boApi = new BOIface(urls(0), "cmd", "post", Array(sqlString), true)
     if (boApi.httpStatus != 200 || boApi.status != 0) {
       logError(s"Failed to resolve sql statement. (Http status code: ${boApi.httpStatus}, BO status code: ${boApi.status})")
       return null.asInstanceOf[DataFrame]
@@ -229,21 +234,33 @@ object BORDD extends Logging {
       logError("Invalid BO output: BO handle is empty.")
       return null.asInstanceOf[DataFrame]
     }
-	val schema = resolveSchema(url, s"HDESC $handle")
+	val schema = resolveSchema(urls(0), s"HDESC $handle")
 	if (schema == null)
       return null.asInstanceOf[DataFrame]
-	
-    sqlSc.createDataFrame(
-      new BORDD(
-        sc,
-        schema,
-        null,
-        Array[String](null),
-        Array[Filter](null),
-        getPartition(url.split(",")),
-        null,
-        s"SCAN $handle"),
-      schema)
+
+    var sqls = new Array[String](urls.length)
+    sqls(0) = s"SCAN $handle"
+    for (i <- 1 to sqls.length - 1)
+      sqls(i) = sqlString
+
+    var allRdd = null.asInstanceOf[RDD[Row]]
+    val partitions = getPartition(urls, sqls)
+    for (part <- partitions) {
+      val boPart = part.asInstanceOf[BOPartition]
+      val boRdd = new BORDD(
+          sc,
+          schema,
+          null,
+          Array[String](null),
+          Array[Filter](null),
+          Array[Partition](BOPartition(boPart.url, 0, boPart.preSQL)),
+          null)
+      if (allRdd == null)
+        allRdd = boRdd
+      else
+        allRdd = allRdd.union(boRdd)
+    }
+    sqlSc.createDataFrame(allRdd, schema)
   }
   
   def writeData(
@@ -437,8 +454,7 @@ class BORDD(
     columns: Array[String],
     filters: Array[Filter],
     partitions: Array[Partition],
-    properties: Properties,
-    sqlString: String = "")
+    properties: Properties)
   extends RDD[Row](sc, Nil)
   with Logging {
 
@@ -488,15 +504,12 @@ class BORDD(
   }
 
   private def getSqlString(): String = {
-    if (sqlString.isEmpty()) {
-      var sqlText = s"SELECT $columnList FROM $fqTable $filterWhereClause"
-      val fetchSize = properties.getProperty("fetchSize", "0").toInt
-      if (fetchSize > 0) {
-	    sqlText += s" LIMIT $fetchSize"
-      }
-	  return sqlText
-	}
-	sqlString
+    var sqlText = s"SELECT $columnList FROM $fqTable $filterWhereClause"
+    val fetchSize = properties.getProperty("fetchSize", "0").toInt
+    if (fetchSize > 0) {
+      sqlText += s" LIMIT $fetchSize"
+    }
+    sqlText
   }
 
   override def compute(thePart: Partition, context: TaskContext): Iterator[Row] = new Iterator[Row]
@@ -511,8 +524,11 @@ class BORDD(
 
     val mutableRow = new SpecificMutableRow(schema.fields.map(x => x.dataType))
     var iter = null.asInstanceOf[Iterator[ArrayBuffer[Any]]]
+    var sqlStr = part.preSQL
+    if (sqlStr == null)
+      sqlStr = getSqlString()
 
-    val boApi = new BOIface(part.url, "cmd", "post", Array(getSqlString()))
+    val boApi = new BOIface(part.url, "cmd", "post", Array(sqlStr))
     if (boApi.httpStatus != 200 || boApi.status != 0) {
       logError(s"Failed to get $fqTable table. (Http status code: ${boApi.httpStatus}, BO status code: ${boApi.status})")
       finished = true
