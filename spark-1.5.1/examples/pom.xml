@@ -1,46 +1,30 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.bigobject</groupId>
+    <artifactId>spark-bo-1.5</artifactId>
+    <version>0.1</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
   <groupId>com.bigobject</groupId>
-  <artifactId>spark-bo-top</artifactId>
-  <version>0.1</version>
+  <artifactId>spark-bo-examples</artifactId>
+  <version>0.2</version>
   <name>${project.artifactId}</name>
-  <description>Spark BO Library</description>
-  <packaging>pom</packaging>
+  <description>Spark BO Examples</description>
+  <packaging>jar</packaging>
   <url>http://www.bigobject.io/</url>
-  <licenses>
-    <license>
-      <name>Apache 2.0 License</name>
-      <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
-      <distribution>repo</distribution>
-    </license>
-  </licenses>
-
-  <modules>
-    <module>spark-1.4.1</module>
-    <module>spark-1.5.1</module>
-  </modules>
-
-  <properties>
-    <maven.compiler.source>1.5</maven.compiler.source>
-    <maven.compiler.target>1.5</maven.compiler.target>
-    <encoding>UTF-8</encoding>
-    <scala.version>2.10.5</scala.version>
-  </properties>
 
   <dependencies>
     <dependency>
-      <groupId>org.scala-lang</groupId>
-      <artifactId>scala-library</artifactId>
-      <version>${scala.version}</version>
+      <groupId>com.bigobject</groupId>
+      <artifactId>spark-bo</artifactId>
+	  <version>${project.version}</version>
     </dependency>
-	<dependency>
-		<groupId>org.apache.httpcomponents</groupId>
-		<artifactId>httpclient</artifactId>
-		<version>4.3.5</version>
-	</dependency>
   </dependencies>
 
   <build>
+    <sourceDirectory>../../examples/src/main/scala</sourceDirectory>
     <plugins>
       <plugin>
         <groupId>org.scala-tools</groupId>
