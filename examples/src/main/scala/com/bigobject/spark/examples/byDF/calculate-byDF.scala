@@ -120,12 +120,12 @@ object JoinApp {
 
     if (isDFAPI) {
       // by DataFrame API
-      val df = sales.join(prod, sales("ProductID") === prod("id")).groupBy(prod("id"), prod("name"), sales("channel_name")).agg(sum("total_price").alias("total_sale"))//.orderBy(desc("total_sale"))
+      val df = sales.join(prod, sales("ProductID") === prod("id")).groupBy(prod("id"), prod("name"), sales("channel_name")).agg(sum("total_price").alias("total_sale")).orderBy(desc("total_sale"))
       df.show()
     }
     else {
       // by sql statement
-      val df = sqlContext.sql("SELECT Product.id, Product.name, sales.channel_name, sum(total_price) AS total_sale FROM Product, sales WHERE Product.id = sales.ProductID GROUP BY Product.id, Product.name, sales.channel_name")// ORDER BY total_sale DESC")
+      val df = sqlContext.sql("SELECT Product.id, Product.name, sales.channel_name, sum(total_price) AS total_sale FROM Product, sales WHERE Product.id = sales.ProductID GROUP BY Product.id, Product.name, sales.channel_name ORDER BY total_sale DESC")
       df.show()
     }
   }

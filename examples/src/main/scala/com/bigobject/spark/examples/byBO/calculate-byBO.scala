@@ -43,17 +43,27 @@ object AvgApp {
 
 object JoinApp {
   def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("Join by BO")
-    val sc = new SparkContext(conf)
-	val sqlContext = new SQLContext(sc)
     val option = new BoOption(args)
     val url = option.getString("url")
+    val isNoFind = option.getBoolean("no-find")
     if (url.length == 0) {
       println("Missing BO url.")
       sys.exit(1)
     }
 
-    val df = BORDD.sql(sc, url, "SELECT Product.id, Product.name, channel_name, sum(total_price) AS total_sale FROM sales GROUP BY Product.id, Product.name, channel_name")// ORDER BY total_sale DESC")
+    var appName = "Join by BO with FIND"
+	if (isNoFind)
+	  appName = "Join by BO without FIND"
+
+    val conf = new SparkConf().setAppName(appName)
+    val sc = new SparkContext(conf)
+	val sqlContext = new SQLContext(sc)
+
+	var sqlJoin = "FIND TOP ALL Product.id, Product.name, channel_name, sum(total_price) FROM sales"
+	if (isNoFind)
+	  sqlJoin = "SELECT Product.id, Product.name, channel_name, sum(total_price) FROM sales GROUP BY Product.id, Product.name, channel_name ORDER BY sum(total_price) DESC"
+
+    val df = BORDD.sql(sc, url, sqlJoin)
     df.show()
   }
 }
