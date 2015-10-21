@@ -204,10 +204,15 @@ object BORDD extends Logging {
     if (sqlCtx == null)
       sqlSc = new SQLContext(sc)
 
-    val boApi = new BOIface(url, "cmd", "post", Array(sqlString))
-    if (boApi.httpStatus != 200 || boApi.status != 0)
-      logError(s"Run command failed. (Http status code: ${boApi.httpStatus}, BO status code: ${boApi.status})")
-	boApi.status
+    val urls = url.split(",")
+    urls.foreach{u =>
+      val boApi = new BOIface(u, "cmd", "post", Array(sqlString))
+      if (boApi.httpStatus != 200 || boApi.status != 0) {
+        logError(s"Run command failed. (Http status code: ${boApi.httpStatus}, BO status code: ${boApi.status})")
+        return boApi.status
+      }
+    }
+    0
   }
 
   def sql(
