@@ -14,11 +14,19 @@ The library is built by maven:
 $ mvn clean package
 ```
 
-## Using with Spark shell
+## Using Spark BO
 This package can be added to Spark using the `--jars` command line option.  For example, to include it when starting the spark shell:
 
 ```
 $ bin/spark-shell --jars spark-bo-0.1.jar
+```
+or starting sparkR
+```
+$ bin/sparkR --jars spark-bo-0.1.jar
+```
+or submitting a job
+```
+$ bin/spark-submit --class com.bigobject.spark.examples.byBO.JoinApp --master spark://127.0.0.1:7077 --jars spark-bo-0.1.jar spark-bo-examples-0.1.jar http://127.0.0.1:9090
 ```
 
 ## What is BO
@@ -59,4 +67,15 @@ val dfTop10 = BORDD.sql(sc, url, "GET TOP 10 FREQ ('Tropical Berry') FROM prod2p
 // find (at most) 10 brands whose 40% sales records comes from the first 10% state sales
 val sqlFind4010 = "FIND pareto(40,10) Product.brand IN Customer.state BY sum(qty) FROM sales"
 val df4010 = BORDD.sql(sc, url, sqlFind4010)
+```
+
+## Examples for R
+You can access BO data from R:
+
+```R
+product <- read.df(sqlContext, source = "com.bigobject.spark", url="http://127.0.0.1:9090", dbtable="Product")
+registerTempTable(product, "Product")
+
+prod_num <- sql(sqlContext, "select brand, count(*) as prod_num from Product group by brand")
+write.df(prod_num, path="dummy", source="com.bigobject.spark", mode="overwrite", url="http://127.0.0.1:9090", dbtable="Prod_Num")
 ```
