@@ -311,7 +311,7 @@ object BORDD extends Logging {
       }
       else {
         schema.fields(i).dataType match {
-          case StringType => sb.append("'").append(StringUtils.replace(row.getString(i), "'", "''")).append("'")
+          case StringType => sb.append("'").append(StringUtils.replace(row.getString(i), "'", "\\'")).append("'")
           case TimestampType => sb.append("'").append(row.getAs[java.sql.Timestamp](i)).append("'")
           case DateType => sb.append("'").append(row.getAs[java.sql.Date](i)).append("'")
           case IntegerType => sb.append(row.getInt(i))
@@ -341,7 +341,7 @@ object BORDD extends Logging {
       while (i < numFields) {
         if (!row.isNullAt(i)) {
           schema.fields(i).dataType match {
-            case StringType => sb.append(StringUtils.replace(row.getString(i), "'", "''"))
+            case StringType => sb.append(StringUtils.replace(row.getString(i), "'", "\\'"))
             case TimestampType => sb.append(row.getAs[java.sql.Timestamp](i))
             case DateType => sb.append(row.getAs[java.sql.Date](i))
             case IntegerType => sb.append(row.getInt(i))
@@ -477,7 +477,7 @@ class BORDD(
   }
 
   private def escapeSql(value: String): String =
-    if (value == null) null else StringUtils.replace(value, "'", "''")
+    if (value == null) null else StringUtils.replace(value, "'", "\\'")
 
   private def compileFilter(f: Filter): String = f match {
     case EqualTo(attr, value) => s"$attr = ${compileValue(value)}"
