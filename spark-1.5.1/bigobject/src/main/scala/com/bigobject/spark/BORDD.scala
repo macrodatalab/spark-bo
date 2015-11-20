@@ -106,7 +106,7 @@ class BOIface(url: String, cmd: String, method: String, stmts: Array[String], as
       var len = qStr.length
       if (len > 512) len = 512
       logInfo("sql: " + qStr.substring(0, len))
-      val se = new StringEntity(qStr)
+      val se = new StringEntity(qStr, "utf-8")
       post.setEntity(se)
       httpRsp = client.execute(post)
     }
@@ -480,6 +480,7 @@ class BORDD(
 
   private def compileValue(value: Any): Any = value match {
     case stringValue: UTF8String => s"'${escapeSql(stringValue.toString)}'"
+    case stringValue: String => s"'${escapeSql(stringValue.toString)}'"
     case _ => value
   }
 
@@ -492,9 +493,9 @@ class BORDD(
     case GreaterThan(attr, value) => s"$attr > ${compileValue(value)}"
     case LessThanOrEqual(attr, value) => s"$attr <= ${compileValue(value)}"
     case GreaterThanOrEqual(attr, value) => s"$attr >= ${compileValue(value)}"
-    case StringStartsWith(attr, value) => s"$attr LIKE '${compileValue(value)}%'"
-    case StringEndsWith(attr, value) => s"$attr LIKE '%${compileValue(value)}'"
-    case StringContains(attr, value) => s"$attr LIKE '%${compileValue(value)}%'"
+    case StringStartsWith(attr, value) => s"$attr LIKE ${compileValue(value + '%')}"
+    case StringEndsWith(attr, value) => s"$attr LIKE ${compileValue('%' + value)}"
+    case StringContains(attr, value) => s"$attr LIKE ${compileValue('%' + value + '%')}"
     case In(attr, value) =>
       val sb = new StringBuilder("")
       value.foreach(x => sb.append(s"${compileValue(x)},"))
